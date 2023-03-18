@@ -1,83 +1,5 @@
-
-"""
-import regex, sys
-import numpy as np
-
-from sympy import *
-
-def parseSAT(expression):
-     Parses a given SAT expression in CNF to its variables.
-    ###Args:
-        #- expression (string): The expression as a string to be parsed.
-    ###Returns:
-        #A list of lists of the variables in the expression. 
-    
-    expression = expression.replace('(', '').replace(')', '')
-    newExpression = regex.split(' *A *', expression)
-    newExpression = [regex.split(' *V *', x) for x in newExpression]
-    return newExpression
-
-
-
-def simplifyVariable(variable):
-    if variable[0] == '¬':
-        return "(1 - " + variable[1:] + ")"
-    return variable
-
-def transform(list):
-    i = 1
-    expression = "-("
-    for x, y, z in list:
-        x, y, z = simplifyVariable(x), simplifyVariable(y), simplifyVariable(z)
-        expression += "(1 + w" + str(i) + ")*(" + x + " + " + y + " + " + z + ") - " + x + "*" + y + " - " + x + "*" + z + " - " + y + "*" + z + " - 2*w"+str(i)
-        if len(list) != i:
-            expression += " + "
-        i += 1
-    expression += ")"
-    return expression
-
-def SATToQUBO():
-    expression = "(x1 V x2 V x3) A (¬x1 V x2 V x3) A (x1 V ¬x2 V x3) A (¬x1 V x2 V ¬x3)"
-    expression = transform(parseSAT(expression))
-    #expression = "-" + expression
-    x1, x2, x3, w1, w2, w3, w4 = symbols('x1 x2 x3 w1 w2 w3 w4')
-
-    # diccionario de sustitución
-    substitutions = {'x1': x1, 'x2': x2, 'x3': x3, 'w1': w1, 'w2': w2, 'w3': w3, 'w4': w4}
-
-    # reemplazar las variables en la expresión original
-    for var, sym in substitutions.items():
-        expression = expression.replace(var, str(sym))# diccionario de sustitución
-    substitutions = {'x1': x1, 'x2': x2, 'x3': x3, 'w1': w1, 'w2': w2, 'w3': w3, 'w4': w4}
-
-    # reemplazar las variables en la expresión original
-    for var, sym in substitutions.items():
-        expression = expression.replace(var, str(sym))
-    sympy_expression = sympify(expression)
-    simplified_expression = simplify(sympy_expression)
-    print(simplified_expression)
-
-def QUBOtoMatrix():
-
-    # Set N to be the maximum value of the QUBO variables
-    N = 3
-
-    # Create an NxN matrix with all elements initialized to 0
-    matrix = np.zeros((N, N))
-
-    # Set the corresponding matrix element to the coefficient of each term
-    matrix[0, 1] = -1  # x1x2
-    matrix[1, 2] = 2   # 2x2x3
-    matrix[0, 2] = -3  # -3x1x3
-
-    # Since the matrix is symmetric, set the element at [i, j] equal to the element at [j, i]
-    matrix = matrix + matrix.T - np.diag(matrix.diagonal())
-
-    print(matrix)
-"""
 import dwavebinarycsp
 import numpy as np
-from dwave.system import LeapHybridSampler
 from dwave.system.samplers import DWaveSampler
 from dwave.system.composites import EmbeddingComposite
 
@@ -119,21 +41,10 @@ def sat_to_qubo(clauses, num_variables):
     return qubo
 
 
-def interpret_sample(sample_set):
-    variables = list(sample_set.variables)
-    samples = sample_set.record
-    sample_list = []
-    for sample in samples:
-        sample_dict = dict(zip(variables, sample))
-        sample_list.append([(-1) ** sample_dict[var] for var in variables])
-    return sample_list
+def interpret_sample(sample):
+    return [(-1) ** sample[var] for var in range(len(sample))]
 
 
-
-
-
-
-from dwave.system import LeapHybridSampler
 if __name__ == '__main__':
     # define a 3-SAT problem instance
     num_variables = 3
@@ -155,6 +66,29 @@ if __name__ == '__main__':
         variable_values = interpret_sample(solution)
         print(f"Solution {idx+1}: {variable_values}")
         print(f"Energy: {energy}\n")
+
+        # extract variable values from solution
+        var_vals = {}
+        for var in range(1, num_variables+1):
+            if var in solution:
+                var_vals[var] = solution[var]
+            else:
+                var_vals[var] = -1 * solution[-var]
+
+        # print the values of the variables that minimize the energy
+        print("Variable values:")
+        for var, val in var_vals.items():
+            print(f"x{var} = {val}")
+
+
+
+    
+
+
+
+
+
+
 
 
 
