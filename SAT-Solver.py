@@ -1,6 +1,58 @@
 import argparse
+import time
+import matplotlib.pyplot as plt
+import numpy as np
+import random
 from dwave.system import DWaveSampler, EmbeddingComposite
 from dimod import BinaryQuadraticModel
+
+def generate_3_SAT_problem(num_vars, num_clauses):
+    clauses = [[random.randint(1, num_vars) * random.choice([-1, 1]) for _ in range(3)] for _ in range(num_clauses)]
+    return clauses
+
+def run_performance_tests(start_dim, end_dim, start_ratio_var, end_ratio_var, num_tests=10):
+    performance_data = np.zeros(((end_dim - start_dim) // 100 + 1, int((end_ratio_var - start_ratio_var) / 0.5) + 1))
+
+    for dim_index, dim in enumerate(range(start_dim, end_dim + 1, 100)):
+        for ratio_var_index, ratio_var in enumerate(np.arange(start_ratio_var, end_ratio_var + 0.5, 0.5)):
+            times = []
+            for _ in range(num_tests):
+                num_vars = int(dim * ratio_var)
+                num_clauses = dim
+                clauses = generate_3_SAT_problem(num_vars, num_clauses)
+
+                start_time = time.time()
+                bqm, variables = build_bqm(clauses)
+                sampler = EmbeddingComposite(DWaveSampler())
+                sampleset = sampler.sample(bqm, num_reads=100)
+                end_time = time.time()
+
+                execution_time = end_time - start_time
+                times.append(execution_time)
+
+            avg_time = np.mean(times)
+            performance_data[dim_index, ratio_var_index] = avg_time
+            print(f"Number of Clauses: {dim}, Ratio of Variables: {ratio_var}, Avg. Time: {avg_time}")
+
+    return performance_data
+
+
+def plot_performance(performance_data, start_dim, end_dim, start_ratio_var, end_ratio_var, filename):
+    fig, ax = plt.subplots()
+
+    ratio_vars = np.arange(start_ratio_var, end_ratio_var + 0.5, 0.5)
+
+    for dim, dim_performance in enumerate(performance_data, start_dim):
+        ax.plot(ratio_vars, dim_performance, label=f"Num. Clauses {dim}")
+
+    ax.set_xlabel("Ratio of Variables")
+    ax.set_ylabel("Average Execution Time (s)")
+    ax.set_title("3-SAT Solver Performance")
+    ax.legend()
+
+    plt.savefig(filename)
+    plt.show()
+
 
 # Function to build the binary quadratic model (BQM) for the given 3-SAT problem
 def build_bqm(clauses):
@@ -68,7 +120,7 @@ def test_3sat_solver():
         print(f"Running {test_case['description']}")
         bqm, _ = build_bqm(test_case['clauses'])
         sampler = EmbeddingComposite(DWaveSampler())
-        sampleset = sampler.sample(bqm, num_reads=1000)  # Increased num_reads to 1000
+        sampleset = sampler.sample(bqm, num_reads=100)  # Increased num_reads to 100
         sample = sampleset.lowest().first.sample  # Get the lowest energy sample
         solution = {abs(key): value for key, value in sample.items() if key > 0}
 
@@ -80,14 +132,24 @@ def test_3sat_solver():
 
 
 if __name__ == '__main__':
-    # Set up argument parser
+    # Set up argument parser and add new arguments for performance mode
     parser = argparse.ArgumentParser()
     parser.add_argument('--test', action='store_true', help='Run test cases')
+    parser.add_argument("--performance", action="store_true", help="Measure performance for a range of dimensions and ratios")
+    parser.add_argument("--dims", nargs=2, type=int, metavar=("DIM_START", "DIM_END"), help="Range of dimensions to test")
+    parser.add_argument("--ratio", nargs=2, type=int, metavar=("RATIO_START", "RATIO_END"), help="Range of ratios to test")
     args = parser.parse_args()
 
     if args.test:
         # If --test flag is present, run the test_3sat_solver function
         test_3sat_solver()
+    elif args.performance:
+        # If --performance flag is present, run the performance mode
+        num_clauses = args.num_clauses
+        start_dim, end_dim = args.dims
+        start_ratio_var, end_ratio_var = args.ratio
+        performance_data = run_performance_tests(start_dim, end_dim, start_ratio_var, end_ratio_var)
+        plot_performance(performance_data, start_dim, end_dim, start_ratio_var, end_ratio_var, "3sat_performance.png")
     else:
         # Set up scenario
         clauses = [[1, 2, 3], [1, -2, -3], [-1, 2, -3]]
