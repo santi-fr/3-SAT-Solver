@@ -7,15 +7,19 @@ from dwave.system import DWaveSampler, EmbeddingComposite
 from dimod import BinaryQuadraticModel
 
 def generate_3_SAT_problem(num_vars, num_clauses):
+    # Generate a random 3-SAT problem
     clauses = [[random.randint(1, num_vars) * random.choice([-1, 1]) for _ in range(3)] for _ in range(num_clauses)]
     return clauses
 
 def run_performance_tests(start_dim, end_dim, start_ratio_var, end_ratio_var, num_tests=10):
-    performance_data = np.zeros(((end_dim - start_dim) // 100 + 1, int((end_ratio_var - start_ratio_var) / 0.5) + 1))
+    # Run performance tests
+    performance_data = np.zeros(((end_dim - start_dim) // 10 + 1, int((end_ratio_var - start_ratio_var) / 0.5) + 1))
 
-    for dim_index, dim in enumerate(range(start_dim, end_dim + 1, 100)):
+    # Iterate over the number of clauses and ratio of variables
+    for dim_index, dim in enumerate(range(start_dim, end_dim + 1, 10)):
         for ratio_var_index, ratio_var in enumerate(np.arange(start_ratio_var, end_ratio_var + 0.5, 0.5)):
             times = []
+            # Run the test num_tests times
             for _ in range(num_tests):
                 num_vars = int(dim * ratio_var)
                 num_clauses = dim
@@ -24,7 +28,7 @@ def run_performance_tests(start_dim, end_dim, start_ratio_var, end_ratio_var, nu
                 start_time = time.time()
                 bqm, variables = build_bqm(clauses)
                 sampler = EmbeddingComposite(DWaveSampler())
-                sampleset = sampler.sample(bqm, num_reads=100)
+                sampleset = sampler.sample(bqm, num_reads=50)
                 end_time = time.time()
 
                 execution_time = end_time - start_time
@@ -38,11 +42,13 @@ def run_performance_tests(start_dim, end_dim, start_ratio_var, end_ratio_var, nu
 
 
 def plot_performance(performance_data, start_dim, end_dim, start_ratio_var, end_ratio_var, filename):
+    # Plot the performance data
     fig, ax = plt.subplots()
 
     ratio_vars = np.arange(start_ratio_var, end_ratio_var + 0.5, 0.5)
+    num_clauses_list = list(range(start_dim, end_dim + 1, 10))
 
-    for dim, dim_performance in enumerate(performance_data, start_dim):
+    for dim, dim_performance in zip(num_clauses_list, performance_data):
         ax.plot(ratio_vars, dim_performance, label=f"Num. Clauses {dim}")
 
     ax.set_xlabel("Ratio of Variables")
@@ -54,6 +60,7 @@ def plot_performance(performance_data, start_dim, end_dim, start_ratio_var, end_
     plt.show()
 
 
+# Function to build the binary quadratic model (BQM) for the given 3-SAT problem
 # Function to build the binary quadratic model (BQM) for the given 3-SAT problem
 def build_bqm(clauses):
     
@@ -82,15 +89,19 @@ def build_bqm(clauses):
         # Convert the clause to penalty terms
         penalty_terms = clause_to_penalty_terms(variables, clause)
         
-        # Add interactions between the penalty terms in the BQM
-        bqm.add_interaction(penalty_terms[0], penalty_terms[1], 1)
-        bqm.add_interaction(penalty_terms[0], penalty_terms[2], 1)
-        bqm.add_interaction(penalty_terms[1], penalty_terms[2], 1)
+        # Add interactions between the penalty terms in the BQM if they are distinct
+        if penalty_terms[0] != penalty_terms[1]:
+            bqm.add_interaction(penalty_terms[0], penalty_terms[1], 1)
+        if penalty_terms[0] != penalty_terms[2]:
+            bqm.add_interaction(penalty_terms[0], penalty_terms[2], 1)
+        if penalty_terms[1] != penalty_terms[2]:
+            bqm.add_interaction(penalty_terms[1], penalty_terms[2], 1)
         
         # Increment the BQM's offset by 1
         bqm.offset += 1
 
     return bqm, variables
+
 
 # Function to check if a given solution is valid for the given clauses
 def is_solution_valid(solution, clauses):
@@ -145,7 +156,6 @@ if __name__ == '__main__':
         test_3sat_solver()
     elif args.performance:
         # If --performance flag is present, run the performance mode
-        num_clauses = args.num_clauses
         start_dim, end_dim = args.dims
         start_ratio_var, end_ratio_var = args.ratio
         performance_data = run_performance_tests(start_dim, end_dim, start_ratio_var, end_ratio_var)
